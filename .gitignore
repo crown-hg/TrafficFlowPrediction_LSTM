@@ -2,4 +2,3 @@
 data/
 logs/
 *_test.py
-lstm.py
