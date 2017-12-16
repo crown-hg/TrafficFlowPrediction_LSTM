@@ -7,7 +7,7 @@ BATCH_START = 0
 TIME_STEPS = 1
 BATCH_SIZE = 71 * 96
 INPUT_SIZE = 147
-OUTPUT_SIZE = 1470
+OUTPUT_SIZE = 147
 CELL_SIZE = 200
 LR = 0.006
 
@@ -33,8 +33,8 @@ class LSTMRNN(object):
         self.cell_size = cell_size  # cell_size is the size of hide units
         self.batch_size = batch_size
         with tf.name_scope('inputs'):
-            self.xs = tf.placeholder(tf.float32, [None, n_steps, input_size], name='xs')
-            self.ys = tf.placeholder(tf.float32, [None, n_steps, output_size], name='ys')
+            self.xs = tf.placeholder(tf.float32, [None, n_steps, input_size], name='xs')  # 6816*1*147
+            self.ys = tf.placeholder(tf.float32, [None, n_steps, output_size], name='ys')  # 6816*1*147
         with tf.variable_scope('in_hidden'):
             self.add_input_layer()
         with tf.variable_scope('LSTM_cell'):
@@ -47,11 +47,11 @@ class LSTMRNN(object):
             self.train_op = tf.train.AdamOptimizer(LR).minimize(self.cost)
 
     def add_input_layer(self, ):
-        l_in_x = tf.reshape(self.xs, [-1, self.input_size], name='2_2D')  # (batch*n_step, in_size)
+        l_in_x = tf.reshape(self.xs, [-1, self.input_size], name='2_2D')  # (batch*n_step, in_size) 6816*1, 147
         # Ws (in_size, cell_size)
-        Ws_in = self._weight_variable([self.input_size, self.cell_size])
+        Ws_in = self._weight_variable([self.input_size, self.cell_size])  # 147*200
         # bs (cell_size, )
-        bs_in = self._bias_variable([self.cell_size, ])
+        bs_in = self._bias_variable([self.cell_size, ])  # 200
         # l_in_y = (batch * n_steps, cell_size)
         with tf.name_scope('Wx_plus_b'):
             l_in_y = tf.matmul(l_in_x, Ws_in) + bs_in
@@ -113,13 +113,13 @@ if __name__ == '__main__':
     test_num = 18 * 96
     x_data = data[0:train_num, :][:, np.newaxis, :]
     y_labels = labels[0:train_num, :][:, np.newaxis, :]
-    test_x_data = data[train_num:train_num + test_num + 1, :]
-    test_y_labels = labels[train_num:train_num + test_num + 1, :]
+    test_x_data = data[train_num:train_num + test_num + 1, :][:, np.newaxis, :]
+    test_y_labels = labels[train_num:train_num + test_num + 1, :][:, np.newaxis, :]
 
     model = LSTMRNN(TIME_STEPS, INPUT_SIZE, OUTPUT_SIZE, CELL_SIZE, BATCH_SIZE)
     sess = tf.Session()
     merged = tf.summary.merge_all()
-#    writer = tf.summary.FileWriter("logs", sess.graph)
+    writer = tf.summary.FileWriter("logs", sess.graph)
 
     # initialize all variables such as Ws_in
     init = tf.global_variables_initializer()
@@ -128,10 +128,8 @@ if __name__ == '__main__':
     # relocate to the local dir and run this line to view it on Chrome (http://0.0.0.0:6006/):
     # $ tensorboard --logdir='logs'
 
-    plt.ion()
-    plt.show()
-    for i in range(5000):
-        # seq, res, xs = get_batch()
+    for i in range(100):
+        # seq, res = get_batch()
         seq, res = x_data, y_labels
         if i == 0:
             feed_dict = {
@@ -150,13 +148,16 @@ if __name__ == '__main__':
             [model.train_op, model.cost, model.cell_final_state, model.pred],
             feed_dict=feed_dict)
 
-        # if i % 100 == 0:
-        #     plt.plot([0:500], res[0:500, 1], 'b', [], pred.flatten()[:TIME_STEPS], 'b--')
-        #     plt.ylim((-1.2, 1.2))
-        #     plt.draw()
-        #     plt.pause(0.3)
-
         if i % 20 == 0:
             print('cost: ', cost)
             result = sess.run(merged, feed_dict)
             writer.add_summary(result, i)
+
+    # # test data
+    # feed_dict = {
+    #     model.xs: test_x_data,
+    #     model.ys: test_y_labels,
+    #     model.cell_init_state: state  # use last state as the initial state for this run
+    # }
+    # model.batch_size = 1729
+    # cost, pred = sess.run([model.cost, model.pred], feed_dict=feed_dict)
