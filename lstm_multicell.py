@@ -1,48 +1,51 @@
 # -*- coding:utf-8 -*-
 import tensorflow as tf
-import numpy as np
 from tensorflow.contrib import rnn
-from tensorflow.examples.tutorials.mnist import input_data
+from get_data import get_pems_data
 
 # 设置 GPU 按需增长
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 
-# 首先导入数据，看一下数据的形式
-mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
-print(mnist.train.images.shape)
-
 ####################################
 #  设置超参数
 
 lr = 1e-3
 # 在训练和测试的时候，我们想用不同的 batch_size.所以采用占位符的方式
-batch_size = tf.placeholder(tf.int32)  # 注意类型必须为 tf.int32
+batch_size = tf.placeholder(tf.int32, [])  # 注意类型必须为 tf.int32
 # 在 1.0 版本以后请使用 ：
 # keep_prob = tf.placeholder(tf.float32, [])
 # batch_size = tf.placeholder(tf.int32, [])
 
 # 每个时刻的输入特征是28维的，就是每个时刻输入一行，一行有 28 个像素
-input_size = 28
-# 时序持续长度为28，即每做一次预测，需要先输入28行
-timestep_size = 28
+input_size = 147
+# 所用时间段的个数
+timestep_size = 4
 # 每个隐含层的节点数
-hidden_size = 256
+hidden_size = 200
 # LSTM layer 的层数
-layer_num = 2
-# 最后输出分类类别数量，如果是回归预测的话应该是 1
-class_num = 10
+layer_num = 1
+# 输出的结点数
+output_size = 147
+# 训练集大小
+train_num = 71 * 96
+# 测试集大小
+test_num = 18 * 96
 
-_X = tf.placeholder(tf.float32, [None, 784])
-y = tf.placeholder(tf.float32, [None, class_num])
+_X = tf.placeholder(tf.float32, [None, timestep_size, input_size])
+_Y = tf.placeholder(tf.float32, [None, output_size])
 # dropout的留下的神经元的比例
-keep_prob = tf.placeholder(tf.float32)
+keep_prob = tf.placeholder(tf.float32, [])
+
+####################################################################
+# 根据timestep_size获取数据
+train_x, train_y, test_x, test_y = get_pems_data(timestep_size)
 
 # 下面几个步骤是实现 RNN / LSTM 的关键
 ####################################################################
 # **步骤1：RNN 的输入shape = (batch_size, timestep_size, input_size)
-X = tf.reshape(_X, [-1, 28, 28])
+X = _X
 
 # **步骤2：定义一层 LSTM_cell，只需要说明 hidden_size, 它会自动匹配输入的 X 的维度
 lstm_cell = rnn.BasicLSTMCell(num_units=hidden_size, forget_bias=1.0, state_is_tuple=True)
@@ -79,33 +82,32 @@ with tf.variable_scope('RNN'):
         outputs.append(cell_output)
 h_state = outputs[-1]
 
-# 上面 LSTM 部分的输出会是一个 [hidden_size] 的tensor，我们要分类的话，还需要接一个 softmax 层
-# 首先定义 softmax 的连接权重矩阵和偏置
-# out_W = tf.placeholder(tf.float32, [hidden_size, class_num], name='out_Weights')
-# out_bias = tf.placeholder(tf.float32, [class_num], name='out_bias')
-# 开始训练和测试
-W = tf.Variable(tf.truncated_normal([hidden_size, class_num], stddev=0.1), dtype=tf.float32)
-bias = tf.Variable(tf.constant(0.1, shape=[class_num]), dtype=tf.float32)
-y_pre = tf.nn.softmax(tf.matmul(h_state, W) + bias)
+# 输出层
+W_o = tf.Variable(tf.truncated_normal([hidden_size, output_size], stddev=0.1), dtype=tf.float32)
+b_o = tf.Variable(tf.constant(0.1, shape=[output_size]), dtype=tf.float32)
+y_pre = tf.add(tf.matmul(h_state, W_o), b_o)
 
 # 损失和评估函数
-cross_entropy = -tf.reduce_mean(y * tf.log(y_pre))
-train_op = tf.train.AdamOptimizer(lr).minimize(cross_entropy)
+mse = tf.losses.mean_squared_error(_Y, y_pre)
+train_op = tf.train.AdamOptimizer(lr).minimize(mse)
 
-correct_prediction = tf.equal(tf.argmax(y_pre, 1), tf.argmax(y, 1))
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+mre = tf.reduce_mean(tf.div(tf.abs(tf.subtract(_Y, y_pre)), _Y))
+mae = tf.reduce_mean(tf.abs(tf.subtract(_Y, y_pre)))
+rmse = tf.sqrt(mse)
 
+# 初始化变量
 sess.run(tf.global_variables_initializer())
-for i in range(2000):
-    _batch_size = 128
-    batch = mnist.train.next_batch(_batch_size)
-    if (i + 1) % 200 == 0:
-        train_accuracy = sess.run(accuracy, feed_dict={
-            _X: batch[0], y: batch[1], keep_prob: 1.0, batch_size: _batch_size})
-        # 已经迭代完成的 epoch 数: mnist.train.epochs_completed
-        print("Iter%d, step %d, training accuracy %g" % (mnist.train.epochs_completed, (i + 1), train_accuracy))
-    sess.run(train_op, feed_dict={_X: batch[0], y: batch[1], keep_prob: 0.5, batch_size: _batch_size})
 
-# 计算测试数据的准确率
-print("test accuracy %g" % sess.run(accuracy, feed_dict={
-    _X: mnist.test.images, y: mnist.test.labels, keep_prob: 1.0, batch_size: mnist.test.images.shape[0]}))
+# 训练和测试
+for i in range(5000):
+    if i % 50 == 0:
+        train_mre, train_mae, train_rmse = sess.run([mre, mae * 1956, rmse * 1956],
+                                                    feed_dict={_X: train_x, _Y: train_y, keep_prob: 1.0,
+                                                               batch_size: train_num})
+        test_mre, test_mae, test_rmse = sess.run([mre, mae * 1956, rmse * 1956],
+                                                 feed_dict={_X: test_x, _Y: test_y, keep_prob: 1.0,
+                                                            batch_size: test_num})
+        print('epoch ', i, 'train', train_mre, train_mae, train_rmse, 'test', test_mre, test_mae, test_rmse)
+    sess.run(train_op, feed_dict={_X: train_x, _Y: train_y, keep_prob: 1.0, batch_size: train_num})
+
+# 测试结果
