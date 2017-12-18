@@ -1,7 +1,12 @@
 # -*- coding:utf-8 -*-
+import time
+import datetime
 import tensorflow as tf
 from tensorflow.contrib import rnn
+
 from get_data import get_pems_data
+
+start_time = datetime.datetime.now()
 
 # 设置 GPU 按需增长
 config = tf.ConfigProto()
@@ -28,6 +33,8 @@ hidden_size = 200
 layer_num = 1
 # 输出的结点数
 output_size = 147
+# 训练次数
+max_epoch = 20000
 # 训练集大小
 train_num = 71 * 96
 # 测试集大小
@@ -92,22 +99,39 @@ mse = tf.losses.mean_squared_error(_Y, y_pre)
 train_op = tf.train.AdamOptimizer(lr).minimize(mse)
 
 mre = tf.reduce_mean(tf.div(tf.abs(tf.subtract(_Y, y_pre)), _Y))
-mae = tf.reduce_mean(tf.abs(tf.subtract(_Y, y_pre)))
-rmse = tf.sqrt(mse)
+mae = tf.reduce_mean(tf.abs(tf.subtract(_Y, y_pre))) * 1956
+rmse = tf.sqrt(mse) * 1956
 
 # 初始化变量
 sess.run(tf.global_variables_initializer())
 
+
+def model_run(x, y, kp, bs):
+    t_mre, t_mae, t_rmse = sess.run([mre, mae, rmse],
+                                    feed_dict={_X: x, _Y: y, keep_prob: kp,
+                                               batch_size: bs})
+    return round(t_mre, 4), round(t_mae, 2), round(t_rmse, 2)
+
+
 # 训练和测试
-for i in range(5000):
+for i in range(1, max_epoch + 1):
     if i % 50 == 0:
-        train_mre, train_mae, train_rmse = sess.run([mre, mae * 1956, rmse * 1956],
-                                                    feed_dict={_X: train_x, _Y: train_y, keep_prob: 1.0,
-                                                               batch_size: train_num})
-        test_mre, test_mae, test_rmse = sess.run([mre, mae * 1956, rmse * 1956],
-                                                 feed_dict={_X: test_x, _Y: test_y, keep_prob: 1.0,
-                                                            batch_size: test_num})
+        train_mre, train_mae, train_rmse = model_run(train_x, train_y, 1.0, train_num)
+        test_mre, test_mae, test_rmse = model_run(test_x, test_y, 1.0, test_num)
+        if i % 1000 == 0:
+            current_time = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+            test_result = '\n%s\t%d\t%d\t\t%d\t%d\t%.4f\t%.2f\t%.2f' % (
+                current_time, layer_num, hidden_size, timestep_size, i, test_mre, test_mae, test_rmse)
+            with open('./Result.txt', 'a') as fp:
+                fp.write(test_result)
+            end_time = datetime.datetime.now()
+            print(end_time - start_time)
         print('epoch ', i, 'train', train_mre, train_mae, train_rmse, 'test', test_mre, test_mae, test_rmse)
     sess.run(train_op, feed_dict={_X: train_x, _Y: train_y, keep_prob: 1.0, batch_size: train_num})
 
-# 测试结果
+# test_mre, test_mae, test_rmse = model_run(train_x, train_y, 1.0, train_num)
+# current_time = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+# test_result = '\n%s\t%d\t%d\t\t%d\t%d\t%.4f\t%.2f\t%.2f' % (
+#     current_time, layer_num, hidden_size, timestep_size, max_epoch, test_mre, test_mae, test_rmse)
+# with open('./Result.txt', 'a') as fp:
+#     fp.write(test_result)
