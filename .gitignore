@@ -2,3 +2,4 @@
 data/
 logs/
 *_test.py
+*.txt
