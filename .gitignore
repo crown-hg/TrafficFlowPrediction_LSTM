@@ -1,5 +1,6 @@
 .idea/
 data/
 logs/
+result_picture/
 *_test.py
 *.txt
