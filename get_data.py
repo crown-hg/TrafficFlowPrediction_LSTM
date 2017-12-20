@@ -3,8 +3,7 @@ import numpy as np
 
 
 def get_pems_data(step=1, train_num=71 * 96, test_num=18 * 96):
-    load_fn = 'data/new147k1.mat'
-    load_data = sio.loadmat(load_fn)
+    load_data = sio.loadmat('data/new147k1.mat')
     data = load_data['data']
 
     train_x = []
