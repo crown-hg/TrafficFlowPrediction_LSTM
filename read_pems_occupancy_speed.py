@@ -27,7 +27,8 @@ speed = np.array(one_day_speed)
 
 for m in range(1, 13):
     for d in range(1, 32):
-        if m == 1 and d == 1 or m == 3 and d == 10:
+        # 3月10日和9月17日数据不完整，这两天的数据被删除
+        if m == 1 and d == 1 or m == 3 and d == 10 or m == 9 and d == 17:
             continue
         if m < 10:
             m_str = '0' + str(m)
@@ -64,4 +65,4 @@ for m in range(1, 13):
         speed = np.vstack((speed, one_day_speed))
         print('month' + m_str + ' day ' + d_str + ' is finished!')
 
-np.savez('data/pems_speed_occupancy.npz', speed=speed, occupancy=occupancy)
+np.savez('data/pems_speed_occupancy_5min.npz', speed=speed, occupancy=occupancy)
