@@ -5,10 +5,10 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.contrib import rnn
-import get_data as gd
 
 
-def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, train_y, test_x, test_y, file_name):
+def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, train_y, test_x, test_y,
+              file_name, use_rbm=False, rbm_W=None, rbm_b=None):
     # 所用时间段的个数 timestep_size = 4
     # 每个隐含层的节点数hidden_size = 200
     # LSTM layer 的层数layer_num = 2
@@ -16,9 +16,9 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
     # 输出的结点数output_size = 143
     # 训练次数max_epoch = 20000
 
-    config = tf.ConfigProto(log_device_placement=True)
+    config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
     # 设置 GPU 按需增长
-    # config.gpu_options.allow_growth = True
+    config.gpu_options.allow_growth = True
     sess = tf.Session(config=config)
     ####################################
 
@@ -44,6 +44,14 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
     # 学习率
     lr = 1e-3
 
+    if use_rbm:
+        # rbm输入层
+        _, rbm_output_size = rbm_W.shape
+        lstm_x = tf.layers.dense(_X, rbm_output_size, kernel_initializer=tf.constant_initializer(rbm_W),
+                                 bias_initializer=tf.constant_initializer(rbm_b))
+    else:
+        lstm_x = _X
+
     def multi_cells(cell_num):
         # 多cell的lstm必须多次建立cell保存在一个list当中
         multi_cell = []
@@ -67,29 +75,14 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
     # ** state.shape = [layer_num, 2, batch_size, hidden_size]（中间的‘2’指的是每个cell中有两层分别是c和h）,
     # ** 或者，可以取 h_state = state[-1][1] 作为最后输出
     # ** 最后输出维度是 [batch_size, hidden_size]
-    # outputs, state = tf.nn.dynamic_rnn(mlstm_cell, inputs=X, initial_state=init_state, time_major=False)
-    # h_state = outputs[:, -1, :]  # 或者 h_state = state[-1][1]
-
-    # *************** 为了更好的理解 LSTM 工作原理，我们把上面 步骤6 中的函数自己来实现 ***************
-    # 通过查看文档你会发现， RNNCell 都提供了一个 __call__()函数（见最后附），我们可以用它来展开实现LSTM按时间步迭代。
-    # **步骤6：方法二，按时间步展开计算
-    # outputs = list()
-    # state = init_state
-    # with tf.variable_scope('RNN'):
-    #     for timestep in range(timestep_size):
-    #         if timestep > 0:
-    #             tf.get_variable_scope().reuse_variables()
-    #         # 这里的state保存了每一层 LSTM 的状态
-    #         (cell_output, state) = mlstm_cell(X[:, timestep, :], state)
-    #         outputs.append(cell_output)
-    # h_state = outputs[-1]
-    outputs, state = tf.nn.dynamic_rnn(mlstm_cell, inputs=_X, initial_state=init_state, time_major=False)
+    outputs, state = tf.nn.dynamic_rnn(mlstm_cell, inputs=lstm_x, initial_state=init_state, time_major=False)
     h_state = outputs[:, -1, :]  # 或者 h_state = state[-1][1]
 
     # 输出层
-    W_o = tf.Variable(tf.truncated_normal([hidden_size, output_size], stddev=0.1), dtype=tf.float32)
-    b_o = tf.Variable(tf.constant(0.1, shape=[output_size]), dtype=tf.float32)
-    y_pre = tf.add(tf.matmul(h_state, W_o), b_o)
+    # W_o = tf.Variable(tf.truncated_normal([hidden_size, output_size], stddev=0.1), dtype=tf.float32)
+    # b_o = tf.Variable(tf.constant(0.1, shape=[output_size]), dtype=tf.float32)
+    # y_pre = tf.add(tf.matmul(h_state, W_o), b_o)
+    y_pre = tf.layers.dense(h_state, output_size)
 
     # 损失和评估函数
     mse = tf.losses.mean_squared_error(_Y, y_pre)
