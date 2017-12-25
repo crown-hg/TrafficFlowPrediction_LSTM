@@ -8,13 +8,16 @@ from tensorflow.contrib import rnn
 
 
 def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, train_y, test_x, test_y,
-              file_name, use_rbm=False, rbm_W=None, rbm_b=None):
+              file_name, use_rbm=False, rbm_w=None, rbm_b=None):
     # 所用时间段的个数 timestep_size = 4
     # 每个隐含层的节点数hidden_size = 200
     # LSTM layer 的层数layer_num = 2
     # dropout_rate = 0.5
     # 输出的结点数output_size = 143
     # 训练次数max_epoch = 20000
+    # 是否使用rbm use_rbm = False
+    # rbm的权值rbm_w = None
+    # rbm的bias rbm_b = None
 
     config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
     # 设置 GPU 按需增长
@@ -24,14 +27,14 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
 
     # train_num训练集大小,input_size输入维度
     train_num, time_step_size, input_size = train_x.shape
-    # output_size输出维度
+    # output_size输出的结点个数
     _, output_size = train_y.shape
     # train_num测试集大小
     test_num, _, _ = test_x.shape
 
     # 下面几个步骤是实现 RNN / LSTM 的关键
     ####################################################################
-    # **步骤1：LSTM 的输入shape = (batch_size, timestep_size, input_size)，输出shape=(batch_size, output_size)
+    # **步骤1：LSTM 的输入shape = (batch_size, time_step_size, input_size)，输出shape=(batch_size, output_size)
     _X = tf.placeholder(tf.float32, [None, time_step_size, input_size])
     _Y = tf.placeholder(tf.float32, [None, output_size])
 
@@ -46,8 +49,9 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
 
     if use_rbm:
         # rbm输入层
-        _, rbm_output_size = rbm_W.shape
-        lstm_x = tf.layers.dense(_X, rbm_output_size, kernel_initializer=tf.constant_initializer(rbm_W),
+        _, rbm_output_size = rbm_w.shape
+        lstm_x = tf.layers.dense(_X, rbm_output_size, activation=tf.nn.sigmoid,
+                                 kernel_initializer=tf.constant_initializer(rbm_w),
                                  bias_initializer=tf.constant_initializer(rbm_b))
     else:
         lstm_x = _X
@@ -70,7 +74,7 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
     init_state = mlstm_cell.zero_state(batch_size, dtype=tf.float32)
 
     # **步骤6：方法一，调用 dynamic_rnn() 来让我们构建好的网络运行起来
-    # ** 当 time_major==False 时， outputs.shape = [batch_size, timestep_size, hidden_size]
+    # ** 当 time_major==False 时， outputs.shape = [batch_size, time_step_size, hidden_size]
     # ** 所以，可以取 h_state = outputs[:, -1, :] 作为最后输出
     # ** state.shape = [layer_num, 2, batch_size, hidden_size]（中间的‘2’指的是每个cell中有两层分别是c和h）,
     # ** 或者，可以取 h_state = state[-1][1] 作为最后输出
@@ -82,35 +86,37 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
     # W_o = tf.Variable(tf.truncated_normal([hidden_size, output_size], stddev=0.1), dtype=tf.float32)
     # b_o = tf.Variable(tf.constant(0.1, shape=[output_size]), dtype=tf.float32)
     # y_pre = tf.add(tf.matmul(h_state, W_o), b_o)
-    y_pre = tf.layers.dense(h_state, output_size)
+    lstm_y_pre = tf.layers.dense(h_state, output_size)
 
     # 损失和评估函数
-    mse = tf.losses.mean_squared_error(_Y, y_pre)
+    mse = tf.losses.mean_squared_error(_Y, lstm_y_pre)
     train_op = tf.train.AdamOptimizer(lr).minimize(mse)
 
-    mre = tf.reduce_mean(tf.div(tf.abs(tf.subtract(_Y, y_pre)), _Y))
-    mae = tf.reduce_mean(tf.abs(tf.subtract(_Y, y_pre))) * 1956
+    # 训练结果的三个指标
+    mre = tf.reduce_mean(tf.div(tf.abs(tf.subtract(_Y, lstm_y_pre)), _Y))
+    mae = tf.reduce_mean(tf.abs(tf.subtract(_Y, lstm_y_pre))) * 1956
     rmse = tf.sqrt(mse) * 1956
 
     # 初始化变量
     sess.run(tf.global_variables_initializer())
 
     def model_run(x, y, kp, bs):
-        t_mre, t_mae, t_rmse = sess.run([mre, mae, rmse],
-                                        feed_dict={_X: x, _Y: y, keep_prob: kp,
-                                                   batch_size: bs})
+        feed_dict = {_X: x, _Y: y, keep_prob: kp, batch_size: bs}
+        t_mre, t_mae, t_rmse = sess.run([mre, mae, rmse], feed_dict=feed_dict)
         return round(t_mre, 4), round(t_mae, 2), round(t_rmse, 2)
 
-    train_mre_reult = []
-    test_mre_reult = []
+    train_mre_result = []
+    test_mre_result = []
+
     # 训练和测试
     start_time = datetime.datetime.now()
     for i in range(1, max_epoch + 1):
+        sess.run(train_op, feed_dict={_X: train_x, _Y: train_y, keep_prob: dropout_keep_rate, batch_size: train_num})
         if i % 5 == 0:
             train_mre, train_mae, train_rmse = model_run(train_x, train_y, 1.0, train_num)
             test_mre, test_mae, test_rmse = model_run(test_x, test_y, 1.0, test_num)
-            train_mre_reult.append(train_mre)
-            test_mre_reult.append(test_mre)
+            train_mre_result.append(train_mre)
+            test_mre_result.append(test_mre)
             if i % 10 == 0:
                 current_time = time.strftime('%Y-%m-%d %H:%M', time.localtime(time.time()))
                 end_time = datetime.datetime.now()
@@ -119,21 +125,23 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
                 test_result = '\n%s\t%d\t%d\t\t%d\t%d\t%.1f\t%.4f\t%.2f\t%.2f\t%s' % (
                     current_time, layer_num, hidden_size, time_step_size, i, dropout_keep_rate, test_mre, test_mae,
                     test_rmse, time_spend)
-                with open(file_name, 'a') as fp:
+                with open('result_log/%s.txt' % file_name, 'a') as fp:
                     fp.write(test_result)
             print('epoch ', i, 'train', train_mre, train_mae, train_rmse, 'test', test_mre, test_mae, test_rmse)
-        sess.run(train_op, feed_dict={_X: train_x, _Y: train_y, keep_prob: dropout_keep_rate, batch_size: train_num})
-    print('min_mre=%.4f\n' % np.min(test_mre_reult))
+
+    with open('result_log/%s.txt' % file_name, 'a') as fp:
+        fp.write('\nmin_mre=%.4f' % np.min(test_mre_result))
+    print('min_mre=%.4f\n' % np.min(test_mre_result))
 
     # 画图
-    plt.plot(train_mre_reult, 'b-', label='train')
-    plt.plot(test_mre_reult, 'r-', label='test')
+    plt.plot(train_mre_result, 'b-', label='train')
+    plt.plot(test_mre_result, 'r-', label='test')
     plt.legend()
-    plt.savefig('result_picture/hn%dts%ddp%.f.png' % (hidden_size, time_step_size, dropout_keep_rate))
+    plt.savefig('result_picture/%shn%dts%ddp%.f.png' % (file_name, hidden_size, time_step_size, dropout_keep_rate))
     plt.show()
     sess.close()
     tf.reset_default_graph()
-    return train_mre_reult, test_mre_reult
+    return train_mre_result, test_mre_result
 
 # def draw_picture():
 #     re = tf.reduce_mean(tf.div(tf.abs(tf.subtract(_Y, y_pre)), _Y), 0)
