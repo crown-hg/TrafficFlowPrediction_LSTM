@@ -32,7 +32,7 @@ train_mre_result = []
 test_mre_result = []
 test_mae_result = []
 test_rmse_result = []
-for hidden_size in [450]:
+for hidden_size in [400]:
     train_mre, test_mre, test_mae, test_rmse = lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate,
                                                          train_x, train_y, test_x, test_y, file_name,
                                                          use_rbm=True, rbm_w=rbm_W, rbm_b=rbm_b,
