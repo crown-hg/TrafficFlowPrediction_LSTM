@@ -1,6 +1,7 @@
 .idea/
 data/
 logs/
+morvan/
 result_picture/
 result_log/
 *_test.py
