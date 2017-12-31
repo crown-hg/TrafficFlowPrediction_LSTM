@@ -1,15 +1,15 @@
-import numpy as np
 import tensorflow as tf
-import time
-from tfrbm import BBRBM, GBRBM
+
+import get_data
 from lstm_multicell import lstm_test
-from get_data import train_fso_test_f
+from tfrbm import GBRBM
 
 # 取数据
 time_step = 4
 train_num = 71 * 96
 test_num = 18 * 96
-train_x, train_y, test_x, test_y = train_fso_test_f(time_step, train_num, test_num)
+train_x, train_y, test_x, test_y, flow_standard_scaler = get_data.train_fso_test_f_standard(time_step, train_num,
+                                                                                            test_num)
 gpu_device = 0
 
 for rbm_hidden in [100, 200, 300, 400]:
@@ -37,7 +37,8 @@ for rbm_hidden in [100, 200, 300, 400]:
         train_mre, test_mre, test_mae, test_rmse = lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate,
                                                              train_x, train_y, test_x, test_y, file_name,
                                                              use_rbm=True, rbm_w=rbm_W, rbm_b=rbm_b,
-                                                             gpu_device=gpu_device)
+                                                             gpu_device=gpu_device,
+                                                             flow_standard_scaler=flow_standard_scaler)
         train_mre_result.append(train_mre)
         test_mre_result.append(test_mre)
         test_mae_result.append(test_mae)

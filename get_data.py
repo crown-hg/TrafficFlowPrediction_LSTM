@@ -2,72 +2,6 @@ import scipy.io as sio
 import numpy as np
 
 
-def train_fso_test_f(step=1, train_num=71 * 96, test_num=18 * 96):
-    load_data = sio.loadmat('data/new147k1.mat')
-    pems = np.load('data/pems_speed_occupancy_15min.npz')
-    flow = abnormal_data_process(load_data['data'])
-    speed = abnormal_data_process(pems['speed'])
-    occupancy = abnormal_data_process(pems['occupancy'])
-    speed = normalize(speed)
-    occupancy = normalize(occupancy)
-    data = np.hstack((flow, speed, occupancy))
-
-    train_x = []
-    train_y = []
-    test_x = []
-    test_y = []
-
-    for i in range(train_num):
-        train_x.append(data[i:i + step, :])
-        train_y.append(flow[i + step, :])
-
-    for i in range(test_num):
-        test_x.append(data[train_num + i:train_num + i + step, :])
-        test_y.append(flow[train_num + i + step, :])
-
-    train_x_np = np.array(train_x)
-    train_y_np = np.array(train_y)
-    test_x_np = np.array(test_x)
-    test_y_np = np.array(test_y)
-
-    train_x_np[train_x_np <= 0] = 3 / 1956
-    train_y_np[train_y_np <= 0] = 3 / 1956
-    test_x_np[test_x_np <= 0] = 3 / 1956
-    test_y_np[test_y_np <= 0] = 3 / 1956
-
-    return train_x_np, train_y_np, test_x_np, test_y_np
-
-
-def train_f_test_f(step=1, train_num=71 * 96, test_num=18 * 96):
-    load_data = sio.loadmat('data/new147k1.mat')
-    flow = abnormal_data_process(load_data['data'])
-    data = flow
-    train_x = []
-    train_y = []
-    test_x = []
-    test_y = []
-
-    for i in range(train_num):
-        train_x.append(data[i:i + step, :])
-        train_y.append(flow[i + step, :])
-
-    for i in range(test_num):
-        test_x.append(data[train_num + i:train_num + i + step, :])
-        test_y.append(flow[train_num + i + step, :])
-
-    train_x_np = np.array(train_x)
-    train_y_np = np.array(train_y)
-    test_x_np = np.array(test_x)
-    test_y_np = np.array(test_y)
-
-    train_x_np[train_x_np <= 0] = 3 / 1956
-    train_y_np[train_y_np <= 0] = 3 / 1956
-    test_x_np[test_x_np <= 0] = 3 / 1956
-    test_y_np[test_y_np <= 0] = 3 / 1956
-
-    return train_x_np, train_y_np, test_x_np, test_y_np
-
-
 def abnormal_data_process(data):
     # 从0开始的24,25,26,27需要去掉
     data = np.delete(data, [24, 25, 26, 27], axis=1)
@@ -75,6 +9,60 @@ def abnormal_data_process(data):
 
 
 def normalize(data):
-    dmin, dmax = data.min(), data.max()  # 求最大最小值
-    data = (data - dmin) / (dmax - dmin)
-    return data
+    data_min, data_max = data.min(), data.max()
+    data_normalize = (data - data_min) / (data_max - data_min)
+    return data_normalize, data_min, data_max
+
+
+def inverse_normalize(data_normalize, data_min, data_max):
+    inverse_data = data_normalize * (data_max - data_min) + data_min
+    return inverse_data
+
+
+def standardize(data):
+    data_mean = data.mean(axis=0)
+    data_std = data.std(axis=0)
+    data_standard = (data - data_mean) / data_std
+    return data_standard, data_mean, data_std
+
+
+def inverse_standardize(data_standard, data_mean, data_std):
+    inverse_data = data_standard * data_std + data_mean
+    return inverse_data
+
+
+def create_train_test(x, y, step, train_num, test_num):
+    train_x = []
+    train_y = []
+    test_x = []
+    test_y = []
+
+    for i in range(train_num):
+        train_x.append(x[i:i + step, :])
+        train_y.append(y[i + step, :])
+
+    for i in range(test_num):
+        test_x.append(x[train_num + i:train_num + i + step, :])
+        test_y.append(y[train_num + i + step, :])
+
+    train_x_np = np.array(train_x)
+    train_y_np = np.array(train_y)
+    test_x_np = np.array(test_x)
+    test_y_np = np.array(test_y)
+
+    return train_x_np, train_y_np, test_x_np, test_y_np
+
+
+_load_data = sio.loadmat('data/new147k1.mat')
+_pems = np.load('data/pems_speed_occupancy_15min.npz')
+_flow = abnormal_data_process(_load_data['data']) * 1956
+_speed = abnormal_data_process(_pems['speed'])
+_occupancy = abnormal_data_process(_pems['occupancy'])
+
+flow_normalized, flow_min, flow_max = normalize(_flow)
+speed_normalized, speed_min, speed_max = normalize(_speed)
+occupancy_normalized, occupancy_min, occupancy_max = normalize(_occupancy)
+
+flow_standardized, flow_mean, flow_std = standardize(_flow)
+speed_standardized, speed_mean, speed_std = standardize(_speed)
+occupancy_standardized, occupancy_mean, occupancy_std = standardize(_occupancy)
