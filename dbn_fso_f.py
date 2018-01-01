@@ -14,24 +14,25 @@ test_num = 18 * 96
 rbm_hidden_num = 1
 rbm_hidden_size = 200
 act_function = None
-LR = 0.001
-max_epoch = 1000
-rbm_type = 'BBRBM'
-data_type = 'standard'
-filename = 'result_log/GBRBM_DBN.txt'
+LR = 0.0001
+max_epoch = 50000
+rbm_type = 'GBRBM'
+data_type = 'normal'
+filename = 'result_log/2018-1-1_DBN.txt'
 
 # 取数据
-if rbm_type == 'GBRBM':
+if data_type == 'standard':
     x = np.hstack((flow_standardized, speed_standardized, occupancy_standardized))
     y = flow_standardized
 else:
     x = np.hstack((flow_normalized, speed_normalized, occupancy_normalized))
+    # x = flow_normalized
     y = flow_normalized
 
 train_x, train_y, test_x, test_y = create_train_test(x, y, time_step, train_num, test_num)
 
-for rbm_hidden_num in [1, 2, 3]:
-    for rbm_hidden_size in [100, 200, 300, 400, 500]:
+for rbm_hidden_num in [2]:
+    for rbm_hidden_size in [300, 400]:
         batch_size, time_step, input_size = train_x.shape
         _, output_size = train_y.shape
         train_X = np.reshape(train_x, (-1, time_step * input_size))
@@ -46,7 +47,7 @@ for rbm_hidden_num in [1, 2, 3]:
         with tf.device('/gpu:%d' % gpu_device):
             for i in range(rbm_hidden_num):
                 # 训练rbm
-                if rbm_type == 'GBRBM':
+                if i == 0 and rbm_type == 'GBRBM':
                     rbm = GBRBM(n_visible=rbm_visible_size, n_hidden=rbm_hidden_size, learning_rate=0.01, momentum=0.95,
                                 use_tqdm=False)
                 else:
@@ -86,9 +87,9 @@ for rbm_hidden_num in [1, 2, 3]:
             mse = tf.losses.mean_squared_error(dbn_y, dbn_y_pre)
             train_op = tf.train.AdamOptimizer(LR).minimize(mse)
 
-            # mre = tf.reduce_mean(tf.div(tf.abs(tf.subtract(dbn_y, real_pre)), dbn_y))
-            # mae = tf.reduce_mean(tf.abs(tf.subtract(dbn_y, real_pre)))
-            # rmse = tf.sqrt(mse)
+            mre = tf.reduce_mean(tf.div(tf.abs(tf.subtract(dbn_y, dbn_y_pre)), dbn_y))
+            mae = tf.reduce_mean(tf.abs(tf.subtract(dbn_y, dbn_y_pre)))
+            rmse = tf.sqrt(mse)
 
         config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
         # 设置 GPU 按需增长
@@ -99,9 +100,9 @@ for rbm_hidden_num in [1, 2, 3]:
 
 
         def get_metrics(real, pred):
-            miss_data_position = real <= 0
-            real[miss_data_position] = 1
-            pred[miss_data_position] = 1
+            # miss_data_position = real <= 0
+            # real[miss_data_position] = 10
+            # pred[miss_data_position] = 10
             mre = np.mean(np.abs(real - pred) / real)
             mae = np.mean(np.abs(real - pred))
             rmse = np.sqrt(np.mean(np.square(real - pred)))
@@ -130,7 +131,7 @@ for rbm_hidden_num in [1, 2, 3]:
         test_rmse_result = []
 
         with open(filename, 'a') as fp:
-            fp.write('\n%s' % rbm_type)
+            fp.write('\n%s\t%s' % (rbm_type, data_type))
         # 训练和测试
         start_time = datetime.datetime.now()
         for i in range(1, max_epoch + 1):
@@ -155,8 +156,8 @@ for rbm_hidden_num in [1, 2, 3]:
                     end_time = datetime.datetime.now()
                     time_spend = (end_time - start_time).seconds
                     start_time = datetime.datetime.now()
-                    test_result = '\n%s\t%d\t%d\t\t%d\t%d\t%.4f\t%.2f\t%.2f\t%s' % (
-                        current_time, rbm_hidden_num, rbm_hidden_size, time_step, i,
+                    test_result = '\n%s\t%d\t%d\t%.4f\t%d\t%d\t%.4f\t%.2f\t%.2f\t%s' % (
+                        current_time, rbm_hidden_num, rbm_hidden_size, LR, time_step, i,
                         test_mre, test_mae, test_rmse, time_spend)
                     with open(filename, 'a') as fp:
                         fp.write(test_result)

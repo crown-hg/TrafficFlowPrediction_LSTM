@@ -3,8 +3,11 @@ import time
 import datetime
 import tensorflow as tf
 import numpy as np
+from get_data import *
 import matplotlib.pyplot as plt
 from tensorflow.contrib import rnn
+
+start_time = datetime.datetime.now()
 
 
 def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, train_y, test_x, test_y,
@@ -90,11 +93,6 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
     mse = tf.losses.mean_squared_error(_Y, lstm_y_pre)
     train_op = tf.train.AdamOptimizer(lr).minimize(mse)
 
-    # 训练结果的三个指标
-    mre = tf.reduce_mean(tf.div(tf.abs(tf.subtract(_Y, lstm_y_pre)), _Y))
-    mae = tf.reduce_mean(tf.abs(tf.subtract(_Y, lstm_y_pre))) * 1956
-    rmse = tf.sqrt(mse) * 1956
-
     config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
     # 设置 GPU 按需增长
     config.gpu_options.allow_growth = True
@@ -102,24 +100,39 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
     # 初始化变量
     sess.run(tf.global_variables_initializer())
 
-    def model_run(x, y, kp, bs):
-        feed_dict = {_X: x, _Y: y, keep_prob: kp, batch_size: bs}
-        t_mre, t_mae, t_rmse = sess.run([mre, mae, rmse], feed_dict=feed_dict)
-        return round(t_mre, 4), round(t_mae, 2), round(t_rmse, 2)
+    def get_metrics(real, pred):
+        # miss_data_position = real <= 0
+        # real[miss_data_position] = 10
+        # pred[miss_data_position] = 10
+        mre = np.mean(np.abs(real - pred) / real)
+        mae = np.mean(np.abs(real - pred))
+        rmse = np.sqrt(np.mean(np.square(real - pred)))
+        return mre, mae, rmse
+
+    def get_metrics_normal(x, y, bs, y_min, y_max):
+        feed_dict = {_X: x, _Y: y, keep_prob: 1.0, batch_size: bs}
+        pred_y = sess.run(lstm_y_pre, feed_dict=feed_dict)
+        real = inverse_normalize(y, y_min, y_max)
+        pred = inverse_normalize(pred_y, y_min, y_max)
+        return get_metrics(real, pred)
+
+    def get_metrics_standard(x, y, bs, y_mean, y_std):
+        feed_dict = {_X: x, _Y: y, keep_prob: 1.0, batch_size: bs}
+        pred_y = sess.run(lstm_y_pre, feed_dict=feed_dict)
+        real = inverse_standardize(y, y_mean, y_std)
+        pred = inverse_standardize(pred_y, y_mean, y_std)
+        return get_metrics(real, pred)
 
     train_mre_result = []
     test_mre_result = []
     test_mae_result = []
     test_rmse_result = []
 
-    # 训练和测试
-    start_time = datetime.datetime.now()
-    for i in range(1, max_epoch + 1):
-        sess.run(train_op, feed_dict={_X: train_x, _Y: train_y, keep_prob: dropout_keep_rate, batch_size: train_num})
+    def print_log():
+        global start_time
         if i % 50 == 0:
-            train_mre, train_mae, train_rmse = model_run(train_x, train_y, 1.0, train_num)
-            test_mre, test_mae, test_rmse = model_run(test_x, test_y, 1.0, test_num)
-            train_mre_result.append(train_mre)
+            train_mre, train_mae, train_rmse = get_metrics_normal(train_x, train_y, train_num, flow_min, flow_max)
+            test_mre, test_mae, test_rmse = get_metrics_normal(test_x, test_y, test_num, flow_min, flow_max)
             test_mre_result.append(test_mre)
             test_mae_result.append(test_mae)
             test_rmse_result.append(test_rmse)
@@ -128,27 +141,26 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
                 end_time = datetime.datetime.now()
                 time_spend = (end_time - start_time).seconds
                 start_time = datetime.datetime.now()
-                test_result = '\n%s\t%d\t%d\t%d\t\t%d\t%d\t%.1f\t%.4f\t%.2f\t%.2f\t%s' % (
-                    current_time, layer_num, hidden_size, rbm_hidden_size, time_step_size, i, dropout_keep_rate,
+                test_result = '\n%s\t%d\t%d\t%d\t%.4f\t%d\t%d\t%.1f\t%.4f\t%.2f\t%.2f\t%s' % (
+                    current_time, layer_num, rbm_hidden_size, hidden_size, lr, time_step_size, i, dropout_keep_rate,
                     test_mre, test_mae, test_rmse, time_spend)
                 with open('result_log/%s.txt' % file_name, 'a') as fp:
                     fp.write(test_result)
-            print('epoch ', i, 'train', train_mre, train_mae, train_rmse, 'test', test_mre, test_mae, test_rmse)
+            print('epoch %d  train %.4f %.2f %.2f test %.4f %.2f %.2f' %
+                  (i, train_mre, train_mae, train_rmse, test_mre, test_mae, test_rmse))
+
+    for i in range(1, max_epoch + 1):
+        print_log()
+        sess.run(train_op, feed_dict={_X: train_x, _Y: train_y, keep_prob: dropout_keep_rate, batch_size: train_num})
 
     with open('result_log/%s.txt' % file_name, 'a') as fp:
         min_index = test_mre_result.index(np.min(test_mre_result))
         line = '\nepoch=%d min_mre %.4f %.2f %.2f' % (
-            (min_index + 1) * 1000, test_mre_result[min_index], test_mae_result[min_index], test_rmse_result[min_index])
+            (min_index + 1) * 50, test_mre_result[min_index], test_mae_result[min_index], test_rmse_result[min_index])
         fp.write(line)
     print(line)
-
-    # # 画图
-    # plt.plot(train_mre_result, 'b-', label='train')
-    # plt.plot(test_mre_result, 'r-', label='test')
-    # plt.legend()
-    # plt.savefig('result_picture/%shn%dts%ddp%.f.png' % (file_name, hidden_size, time_step_size, dropout_keep_rate))
-    # plt.show()
-    # sess.close()
+    sess.close()
+    # 还原图，否则tensorflow再次运行会报错
     tf.reset_default_graph()
     return train_mre_result, test_mre_result, test_mae_result, test_rmse_result
 
@@ -163,3 +175,11 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
 #     plt.legend()
 #     plt.savefig('95.png')
 #     plt.show()
+
+# # 画图
+# plt.plot(train_mre_result, 'b-', label='train')
+# plt.plot(test_mre_result, 'r-', label='test')
+# plt.legend()
+# plt.savefig('result_picture/%shn%dts%ddp%.f.png' % (file_name, hidden_size, time_step_size, dropout_keep_rate))
+# plt.show()
+# sess.close()
