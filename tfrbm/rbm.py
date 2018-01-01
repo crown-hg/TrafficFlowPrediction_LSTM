@@ -157,9 +157,9 @@ class RBM:
         return errs
 
     def get_weights(self):
-        return self.sess.run(self.w),\
-            self.sess.run(self.visible_bias),\
-            self.sess.run(self.hidden_bias)
+        return self.sess.run(self.w), \
+               self.sess.run(self.visible_bias), \
+               self.sess.run(self.hidden_bias)
 
     def save_weights(self, filename, name):
         saver = tf.train.Saver({name + '_w': self.w,
