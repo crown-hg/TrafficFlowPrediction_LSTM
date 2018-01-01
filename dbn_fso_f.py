@@ -16,7 +16,8 @@ rbm_hidden_size = 200
 act_function = None
 LR = 0.001
 max_epoch = 1000
-rbm_type = 'GBRBM'
+rbm_type = 'BBRBM'
+data_type = 'standard'
 filename = 'result_log/GBRBM_DBN.txt'
 
 # 取数据
@@ -135,7 +136,7 @@ for rbm_hidden_num in [1, 2, 3]:
         for i in range(1, max_epoch + 1):
             sess.run(train_op, feed_dict={dbn_x: train_X, dbn_y: train_Y, dbn_batch_size: train_num})
             if i % 50 == 0:
-                if rbm_type == 'GBRBM':
+                if data_type == 'standard':
                     train_mre, train_mae, train_rmse = get_metrics_standard(train_X, train_Y, train_num, flow_mean,
                                                                             flow_std)
                     test_mre, test_mae, test_rmse = get_metrics_standard(test_X, test_Y, test_num, flow_mean, flow_std)

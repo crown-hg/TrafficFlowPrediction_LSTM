@@ -56,6 +56,7 @@ def create_train_test(x, y, step, train_num, test_num):
 _load_data = sio.loadmat('data/new147k1.mat')
 _pems = np.load('data/pems_speed_occupancy_15min.npz')
 _flow = abnormal_data_process(_load_data['data']) * 1956
+_flow[_flow <= 0] = 3
 _speed = abnormal_data_process(_pems['speed'])
 _occupancy = abnormal_data_process(_pems['occupancy'])
 
