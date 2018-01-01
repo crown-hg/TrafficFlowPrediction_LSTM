@@ -137,7 +137,7 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
 
     with open('result_log/%s.txt' % file_name, 'a') as fp:
         min_index = test_mre_result.index(np.min(test_mre_result))
-        line = '\nepoch=%d min_mre %.4f %2.f %2.f' % (
+        line = '\nepoch=%d min_mre %.4f %.2f %.2f' % (
             (min_index + 1) * 1000, test_mre_result[min_index], test_mae_result[min_index], test_rmse_result[min_index])
         fp.write(line)
     print(line)
