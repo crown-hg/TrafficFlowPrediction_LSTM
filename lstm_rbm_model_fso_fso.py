@@ -10,7 +10,7 @@ from tensorflow.contrib import rnn
 start_time = datetime.datetime.now()
 
 
-def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, train_y, test_x, test_y,
+def lstm_test_fso_fso(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, train_y, test_x, test_y,
               file_name, use_rbm=False, rbm_w=None, rbm_b=None, use_linear=False, h1=0, gpu_device=0):
     # ################参数的含义###################
     # 所用时间段的个数 timestep_size = 4
@@ -109,57 +109,78 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
         rmse = np.sqrt(np.mean(np.square(real - pred)))
         return mre, mae, rmse
 
-    def get_metrics_normal(x, y, bs, y_min, y_max):
-        feed_dict = {_X: x, _Y: y, keep_prob: 1.0, batch_size: bs}
+    def get_metrics_normal(x, y, bs):
+        feed_dict = {_X: x, _Y: y, keep_prob: 1, batch_size: bs}
         pred_y = sess.run(lstm_y_pre, feed_dict=feed_dict)
-        real = inverse_normalize(y, y_min, y_max)
-        pred = inverse_normalize(pred_y, y_min, y_max)
-        return get_metrics(real, pred)
 
-    def get_metrics_standard(x, y, bs, y_mean, y_std):
-        feed_dict = {_X: x, _Y: y, keep_prob: 1.0, batch_size: bs}
-        pred_y = sess.run(lstm_y_pre, feed_dict=feed_dict)
-        real = inverse_standardize(y, y_mean, y_std)
-        pred = inverse_standardize(pred_y, y_mean, y_std)
-        return get_metrics(real, pred)
+        flow_real = inverse_normalize(y[:, 0:143], flow_min, flow_max)
+        flow_pred = inverse_normalize(pred_y[:, 0:143], flow_min, flow_max)
 
-    train_mre_result = []
-    test_mre_result = []
-    test_mae_result = []
-    test_rmse_result = []
+        speed_real = inverse_normalize(y[:, 143:143 * 2], speed_min, speed_max)
+        speed_pred = inverse_normalize(pred_y[:, 143:143 * 2], speed_min, speed_max)
+
+        occupancy_real = inverse_normalize(y[:, 143 * 2:143 * 3], occupancy_min, occupancy_max)
+        occupancy_pred = inverse_normalize(pred_y[:, 143 * 2:143 * 3], occupancy_min, occupancy_max)
+
+        flow_metrics = get_metrics(flow_real, flow_pred)
+        speed_metrics = get_metrics(speed_real, speed_pred)
+        occupancy_metrics = get_metrics(occupancy_real, occupancy_pred)
+        return flow_metrics, speed_metrics, occupancy_metrics
+
+    train_result = []
+    test_result = []
 
     def print_log():
         global start_time
         if i % 50 == 0:
-            train_mre, train_mae, train_rmse = get_metrics_normal(train_x, train_y, train_num, flow_min, flow_max)
-            test_mre, test_mae, test_rmse = get_metrics_normal(test_x, test_y, test_num, flow_min, flow_max)
-            test_mre_result.append(test_mre)
-            test_mae_result.append(test_mae)
-            test_rmse_result.append(test_rmse)
-            if i % 1000 == 0:
-                current_time = time.strftime('%Y-%m-%d %H:%M', time.localtime(time.time()))
-                end_time = datetime.datetime.now()
-                time_spend = (end_time - start_time).seconds
-                start_time = datetime.datetime.now()
-                test_result = '\n%s\t%d\t%d\t%d\t%.4f\t%d\t%d\t%.1f\t%.4f\t%.2f\t%.2f\t%s' % (
-                    current_time, layer_num, rbm_hidden_size, hidden_size, lr, time_step_size, i, dropout_keep_rate,
-                    test_mre, test_mae, test_rmse, time_spend)
-                with open('result_log/%s.txt' % file_name, 'a') as fp:
-                    fp.write(test_result)
-            print('epoch %d  train %.4f %.2f %.2f test %.4f %.2f %.2f' %
-                  (i, train_mre, train_mae, train_rmse, test_mre, test_mae, test_rmse))
+            train_metrics = get_metrics_normal(train_x, train_y, train_num)
+            test_metrics = get_metrics_normal(test_x, test_y, test_num)
+            train_result.append(train_metrics)
+            test_result.append(test_metrics)
+            train_line = (
+                train_metrics[0][0], train_metrics[0][1], train_metrics[0][2], train_metrics[1][0],
+                train_metrics[1][1],
+                train_metrics[1][2], train_metrics[2][0], train_metrics[2][1], train_metrics[2][2])
+            print('epoch %d' % i)
+            print('train\tflow %.4f %.2f %.2f speed %.4f %.2f %.2f occupancy %.4f %.2f %.2f' % train_line)
+            feed = (
+                test_metrics[0][0], test_metrics[0][1], test_metrics[0][2], test_metrics[1][0],
+                test_metrics[1][1],
+                test_metrics[1][2], test_metrics[2][0], test_metrics[2][1], test_metrics[2][2])
+            test_line = 'flow %.4f %.2f %.2f speed %.4f %.2f %.2f occupancy %.4f %.2f %.2f' % feed
+            print('test\t%s' % test_line)
 
     for i in range(1, max_epoch + 1):
         print_log()
         sess.run(train_op, feed_dict={_X: train_x, _Y: train_y, keep_prob: dropout_keep_rate, batch_size: train_num})
 
-    with open('result_log/%s.txt' % file_name, 'a') as fp:
-        min_index = test_mre_result.index(np.min(test_mre_result))
-        line = '\nepoch=%d min_mre %.4f %.2f %.2f' % (
-            (min_index + 1) * 50, test_mre_result[min_index], test_mae_result[min_index], test_rmse_result[min_index])
-        fp.write(line)
-    print(line)
-    sess.close()
-    # 还原图，否则tensorflow再次运行会报错
-    tf.reset_default_graph()
-    return train_mre_result, test_mre_result, test_mae_result, test_rmse_result
+    # with open('result_log/%s.txt' % file_name, 'a') as fp:
+    #     min_index = test_mre_result.index(np.min(test_mre_result))
+    #     line = '\nepoch=%d min_mre %.4f %.2f %.2f' % (
+    #         (min_index + 1) * 50, test_mre_result[min_index], test_mae_result[min_index], test_rmse_result[min_index])
+    #     fp.write(line)
+    # print(line)
+    # sess.close()
+    # # 还原图，否则tensorflow再次运行会报错
+    # tf.reset_default_graph()
+    # return train_mre_result, test_mre_result, test_mae_result, test_rmse_result
+
+# def draw_picture():
+#     re = tf.reduce_mean(tf.div(tf.abs(tf.subtract(_Y, y_pre)), _Y), 0)
+#     rr = sess.run(re, feed_dict={_X: test_x, _Y: test_y, keep_prob: 1.0, batch_size: test_num})
+#     plt.plot(range(0, 147), rr, '*')
+#     plt.savefig('re.png')
+#     pred = sess.run(y_pre, feed_dict={_X: test_x, _Y: test_y, keep_prob: 1.0, batch_size: test_num})
+#     plt.plot(range(test_num), test_y[:, 95], 'b-', label='real')
+#     plt.plot(range(test_num), pred[:, 95], 'r-', label='pred')
+#     plt.legend()
+#     plt.savefig('95.png')
+#     plt.show()
+
+# # 画图
+# plt.plot(train_mre_result, 'b-', label='train')
+# plt.plot(test_mre_result, 'r-', label='test')
+# plt.legend()
+# plt.savefig('result_picture/%shn%dts%ddp%.f.png' % (file_name, hidden_size, time_step_size, dropout_keep_rate))
+# plt.show()
+# sess.close()

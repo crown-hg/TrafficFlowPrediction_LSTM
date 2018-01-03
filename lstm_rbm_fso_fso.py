@@ -2,14 +2,13 @@ import numpy as np
 import tensorflow as tf
 import time
 from tfrbm import BBRBM, GBRBM
-from lstm_multicell import lstm_test
-from get_data import train_fso_test_fso
+from lstm_rbm_model_fso_fso import lstm_test_fso_fso
+from get_data import *
 
 # 取数据
 time_step = 4
 train_num = 71 * 96
 test_num = 18 * 96
-train_x, train_y, test_x, test_y = train_fso_test_fso(time_step, train_num, test_num)
 gpu_device = 2
 # lstm的hyper-parameters
 # hidden_size = 400
@@ -17,7 +16,11 @@ layer_num = 1
 max_epoch = 20000
 dropout_keep_rate = 0.9
 
-for rbm_hidden in [100, 200, 300, 400]:
+x = np.hstack((flow_normalized, speed_normalized, occupancy_normalized))
+y = np.hstack((flow_normalized, speed_normalized, occupancy_normalized))
+train_x, train_y, test_x, test_y = create_train_test(x, y, time_step, train_num, test_num)
+
+for rbm_hidden in [400]:
     with tf.device('/gpu:%d' % gpu_device):
         # 训练rbm
         _, _, input_size = train_x.shape
@@ -32,12 +35,12 @@ for rbm_hidden in [100, 200, 300, 400]:
     test_mre_result = []
     test_mae_result = []
     test_rmse_result = []
-    for hidden_size in [100, 200, 300, 400, 500, 600]:
-        train_mre, test_mre, test_mae, test_rmse = lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate,
-                                                             train_x, train_y, test_x, test_y, file_name,
-                                                             use_rbm=True, rbm_w=rbm_W, rbm_b=rbm_b,
-                                                             gpu_device=gpu_device)
-        train_mre_result.append(train_mre)
-        test_mre_result.append(test_mre)
-        test_mae_result.append(test_mae)
-        test_rmse_result.append(test_rmse)
+    for hidden_size in [400]:
+        lstm_test_fso_fso(hidden_size, layer_num, max_epoch, dropout_keep_rate,
+                          train_x, train_y, test_x, test_y, file_name,
+                          use_rbm=True, rbm_w=rbm_W, rbm_b=rbm_b,
+                          gpu_device=gpu_device)
+        # train_mre_result.append(train_mre)
+        # test_mre_result.append(test_mre)
+        # test_mae_result.append(test_mae)
+        # test_rmse_result.append(test_rmse)

@@ -59,7 +59,7 @@ _flow = abnormal_data_process(_load_data['data']) * 1956
 _flow[_flow <= 0] = 3
 _speed = abnormal_data_process(_pems['speed'])
 _occupancy = abnormal_data_process(_pems['occupancy'])
-
+_occupancy[_occupancy <= 0] = 0.0002
 flow_normalized, flow_min, flow_max = normalize(_flow)
 speed_normalized, speed_min, speed_max = normalize(_speed)
 occupancy_normalized, occupancy_min, occupancy_max = normalize(_occupancy)
