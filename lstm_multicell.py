@@ -45,10 +45,13 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
 
         if weights is not None:
             # 输入层赋初始值
-            hide_output = nn(x_input, rbm_hidden_num, rbm_hidden_size, hide_act_function=act_function,
+            pre_layer_hidden_num = len(weights)
+            pre_layer_hidden_size = len(biases[0])
+            hide_output = nn(x_input, pre_layer_hidden_num, pre_layer_hidden_size, hide_act_function=act_function,
                              weights=weights, biases=biases)
         else:
-            rbm_hidden_size = 0
+            pre_layer_hidden_num = 0
+            pre_layer_hidden_size = 0
             hide_output = x_input
 
     y_pred = lstm(layer_num, hidden_size, batch_size, output_size, hide_output, keep_prob)
@@ -83,9 +86,9 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
                 current_time = time.strftime('%Y-%m-%d %H:%M', time.localtime(time.time()))
                 end_time = datetime.datetime.now()
                 time_spend = (end_time - start_time).seconds
-                test_result = '\n%s\t%d\t%d\t%d\t%.4f\t%d\t%d\t%.1f\t%.4f\t%.2f\t%.2f\t%s' % (
-                    current_time, layer_num, rbm_hidden_size, hidden_size, lr, time_step_size, i, dropout_keep_rate,
-                    mre, mae, rmse, time_spend)
+                test_result = '\n%s\t%d\t%d\t%d\t%d\t%.4f\t%d\t%d\t%.1f\t%.4f\t%.2f\t%.2f\t%s' % (
+                    current_time, layer_num, pre_layer_hidden_num, pre_layer_hidden_size, hidden_size, lr,
+                    time_step_size, i, dropout_keep_rate, mre, mae, rmse, time_spend)
                 with open('result_log/%s.txt' % file_name, 'a') as fp:
                     fp.write(test_result)
 
