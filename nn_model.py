@@ -2,6 +2,8 @@ import tensorflow as tf
 
 
 def nn(x_input, hidden_num, hidden_size, hide_act_function=None, weights=None, biases=None):
+    # 产生一个只有 输入层 和 隐藏层 的神经网络
+    # x_input必须是tensor
     output = list()
     with tf.name_scope('input_layer'):
         if weights is None:
