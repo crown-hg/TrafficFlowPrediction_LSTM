@@ -83,9 +83,11 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
             mae_result.append(mae)
             rmse_result.append(rmse)
             if i % 1000 == 0:
+                global start_time
                 current_time = time.strftime('%Y-%m-%d %H:%M', time.localtime(time.time()))
                 end_time = datetime.datetime.now()
                 time_spend = (end_time - start_time).seconds
+                start_time = datetime.datetime.now()
                 test_result = '\n%s\t%d\t%d\t%d\t%d\t%.4f\t%d\t%d\t%.1f\t%.4f\t%.2f\t%.2f\t%s' % (
                     current_time, layer_num, pre_layer_hidden_num, pre_layer_hidden_size, hidden_size, lr,
                     time_step_size, i, dropout_keep_rate, mre, mae, rmse, time_spend)
