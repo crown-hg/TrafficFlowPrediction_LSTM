@@ -6,3 +6,4 @@ result_picture/
 result_log/
 *_test.py
 *.txt
+ __pycache__/
