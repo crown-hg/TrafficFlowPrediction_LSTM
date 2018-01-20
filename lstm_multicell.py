@@ -2,7 +2,7 @@
 import time
 import datetime
 import tensorflow as tf
-from get_data import *
+import numpy as np
 from lstm_model import lstm
 from train_log import print_to_console
 from nn_model import nn
@@ -10,8 +10,9 @@ from nn_model import nn
 start_time = datetime.datetime.now()
 
 
-def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, train_y, test_x, test_y,
-              file_name, weights=None, biases=None, act_function=None, gpu_device=0):
+def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, train_y, test_x, test_y, y_min,
+              y_max, file_name, train_y_aver=None, test_y_aver=None, weights=None, biases=None, act_function=None,
+              gpu_device=0):
     # ################参数的含义###################
     # 所用时间段的个数 timestep_size = 4
     # 每个隐含层的节点数hidden_size = 200
@@ -78,7 +79,8 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
             train_y_pred = sess.run(y_pred, feed_dict=feed_dict)
             feed_dict = {x_input: test_x, y_real: test_y, keep_prob: 1.0, batch_size: test_num}
             test_y_pred = sess.run(y_pred, feed_dict=feed_dict)
-            mre, mae, rmse = print_to_console(i, train_y, train_y_pred, test_y, test_y_pred, flow_min, flow_max)
+            mre, mae, rmse = print_to_console(i, train_y, train_y_pred, test_y, test_y_pred, y_min, y_max,
+                                              train_y_aver=train_y_aver, test_y_aver=test_y_aver)
             mre_result.append(mre)
             mae_result.append(mae)
             rmse_result.append(rmse)
