@@ -1,5 +1,5 @@
-import scipy.io as sio
 import numpy as np
+import scipy.io as sio
 
 
 def abnormal_data_process_for_occupancy(data):
@@ -29,60 +29,6 @@ def standardize(data):
 def inverse_standardize(data_standard, data_mean, data_std):
     inverse_data = data_standard * data_std + data_mean
     return inverse_data
-
-
-def abnormal_data_process_for_week(data):
-    data = np.delete(data, [51, 53, 89, 90, 93, 94, 95, 96, 97, 98, 103, 105], axis=1)
-    return data
-
-
-# def diff_to_original(flow_diff, week_aver):
-
-
-def get_aver_diff():
-    ld = sio.loadmat('data/new147k1.mat')
-    flow_data = abnormal_data_process_for_week(ld['data']) * 1956
-    flow_data[flow_data <= 0] = 3
-    station_num = flow_data.shape[1]
-    flow_diff = np.zeros(shape=[90 * 96, station_num])
-    week_aver = np.zeros(shape=flow_diff.shape)
-
-    def data_diff(first_day, after_abnormal_day, weeks):
-        x = range((first_day - 1) * 96, first_day * 96)
-        mflow = flow_data[x, :][np.newaxis, :]
-        for i in weeks:
-            x = range(((first_day - 1) + i * 7) * 96, (first_day + i * 7) * 96)
-            f = flow_data[x, :][np.newaxis, :]
-            mflow = np.concatenate((mflow, f), axis=0)
-        x = range((after_abnormal_day - 1) * 96, after_abnormal_day * 96)
-        f = flow_data[x, :][np.newaxis, :]
-        mflow = np.concatenate((mflow, f), axis=0)
-        mflow_mean = mflow.mean(axis=0)
-
-        x = range((first_day - 1) * 96, first_day * 96)
-        flow_diff[x, :] = flow_data[x, :] - mflow_mean
-        week_aver[x, :] = mflow_mean
-        for i in weeks:
-            x = range((first_day - 1 + i * 7) * 96, (first_day + i * 7) * 96)
-            flow_diff[x, :] = flow_data[x, :] - mflow_mean
-            week_aver[x, :] = mflow_mean
-        for i in range(0, 3):
-            x = range((after_abnormal_day + i * 7 - 1) * 96, (after_abnormal_day + i * 7) * 96)
-            flow_diff[x, :] = flow_data[x, :] - mflow_mean
-            week_aver[x, :] = mflow_mean
-        return mflow_mean
-
-    week_aver = list()
-    week_aver.append(data_diff(7, 69, [1, 3, 4, 5, 7, 8, 9]))
-    week_aver.append(data_diff(8, 70, range(1, 10)))
-    week_aver.append(data_diff(2, 71, range(1, 11)))
-    week_aver.append(data_diff(3, 72, range(1, 11)))
-    week_aver.append(data_diff(4, 73, range(1, 11)))
-    week_aver.append(data_diff(5, 74, range(1, 11)))
-    week_aver.append(data_diff(6, 75, range(1, 10)))
-    x = range(89 * 96, 90 * 96)
-    flow_diff[x, :] = flow_data[x, :] - week_aver[0]  # 为了产生train和test数据方便，最后加了一天
-    return flow_diff, week_aver
 
 
 def create_train_test(x, y, step, train_num, test_num):
