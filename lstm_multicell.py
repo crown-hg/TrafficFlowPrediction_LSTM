@@ -10,9 +10,8 @@ from nn_model import nn
 start_time = datetime.datetime.now()
 
 
-def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, train_y, test_x, test_y, y_min,
-              y_max, file_name, train_y_aver=None, test_y_aver=None, weights=None, biases=None, act_function=None,
-              gpu_device=0):
+def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, data, file_name, lr=1e-3, weights=None, biases=None,
+              act_function=None, gpu_device=0):
     # ################参数的含义###################
     # 所用时间段的个数 timestep_size = 4
     # 每个隐含层的节点数hidden_size = 200
@@ -25,14 +24,14 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
     # rbm的bias rbm_b = None
     # #############################################
 
+    train_x = data['train_x']
+    train_y = data['train_y']
+
     # 根据输入数据来决定，train_num训练集大小,input_size输入维度
     train_num, time_step_size, input_size = train_x.shape
     # output_size输出的结点个数
     _, output_size = train_y.shape
-    # train_num测试集大小
-    test_num, _, _ = test_x.shape
-    # 学习率
-    lr = 1e-3
+
     with tf.device('/gpu:%d' % gpu_device):
         # **步骤1：LSTM 的输入shape = (batch_size, time_step_size, input_size)，输出shape=(batch_size, output_size)
         x_input = tf.placeholder(tf.float32, [None, time_step_size, input_size])
@@ -72,15 +71,15 @@ def lstm_test(hidden_size, layer_num, max_epoch, dropout_keep_rate, train_x, tra
     rmse_result = []
 
     for i in range(1, max_epoch + 1):
-        sess.run(train_op,
-                 feed_dict={x_input: train_x, y_real: train_y, keep_prob: dropout_keep_rate, batch_size: train_num})
+        feed_dict = {x_input: train_x, y_real: train_y, keep_prob: dropout_keep_rate, batch_size: train_num}
+        sess.run(train_op, feed_dict=feed_dict)
         if i % 50 == 0:
             feed_dict = {x_input: train_x, y_real: train_y, keep_prob: 1.0, batch_size: train_num}
             train_y_pred = sess.run(y_pred, feed_dict=feed_dict)
-            feed_dict = {x_input: test_x, y_real: test_y, keep_prob: 1.0, batch_size: test_num}
+            feed_dict = {x_input: data['test_x'], y_real: data['test_y'], keep_prob: 1.0,
+                         batch_size: data['test_y'].shape[0]}
             test_y_pred = sess.run(y_pred, feed_dict=feed_dict)
-            mre, mae, rmse = print_to_console(i, train_y, train_y_pred, test_y, test_y_pred, y_min, y_max,
-                                              train_y_aver=train_y_aver, test_y_aver=test_y_aver)
+            mre, mae, rmse = print_to_console(i, train_y_pred, test_y_pred, data)
             mre_result.append(mre)
             mae_result.append(mae)
             rmse_result.append(rmse)
