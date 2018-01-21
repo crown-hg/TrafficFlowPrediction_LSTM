@@ -1,6 +1,23 @@
 import numpy as np
 import scipy.io as sio
-from get_data import normalize
+from get_data import Normal, Standard
+
+
+class TrendDiff:
+    def __init__(self, data_process, train_num, train_y_aver_np, test_num, test_y_aver_np):
+        self.data_process = data_process
+        self.train_num = train_num
+        self.train_y_aver_np = train_y_aver_np
+        self.test_num = test_num
+        self.test_y_aver_np = test_y_aver_np
+
+    def reconstruct(self, data):
+        data_diff = self.data_process.reconstruct(data)
+        num = data_diff.shape[0]
+        if num == self.train_num:
+            return data_diff + self.train_y_aver_np
+        else:
+            return data_diff + self.test_y_aver_np
 
 
 def abnormal_data_process_for_week(data):
@@ -8,7 +25,7 @@ def abnormal_data_process_for_week(data):
     return data
 
 
-def create_train_test_week(step, train_num, test_num):
+def create_train_test_week(step, train_num, test_num, data_type='normal'):
     ld = sio.loadmat('data/new147k1.mat')
     flow_data = abnormal_data_process_for_week(ld['data']) * 1956
     flow_data[flow_data <= 3] = 3
@@ -55,8 +72,10 @@ def create_train_test_week(step, train_num, test_num):
     flow_diff[xx, :] = flow_data[xx, :] - monday_aver  # 为了产生train和test数据方便，最后加了一天
     week_aver[xx, :] = monday_aver
 
-
-    flow_diff_normalize, flow_diff_min, flow_diff_max = normalize(flow_diff)
+    if data_type == 'normal':
+        flow_diff_ns = Normal(flow_diff)
+    else:
+        flow_diff_ns = Standard(flow_diff)
 
     train_x = []
     train_y = []
@@ -66,13 +85,13 @@ def create_train_test_week(step, train_num, test_num):
     test_y_aver = []
 
     for i in range(train_num):
-        train_x.append(flow_diff_normalize[i:i + step, :])
-        train_y.append(flow_diff_normalize[i + step, :])
+        train_x.append(flow_diff_ns.data[i:i + step, :])
+        train_y.append(flow_diff_ns.data[i + step, :])
         train_y_aver.append(week_aver[i + step, :])
 
     for i in range(test_num):
-        test_x.append(flow_diff_normalize[train_num + i:train_num + i + step, :])
-        test_y.append(flow_diff_normalize[train_num + i + step, :])
+        test_x.append(flow_diff_ns.data[train_num + i:train_num + i + step, :])
+        test_y.append(flow_diff_ns.data[train_num + i + step, :])
         test_y_aver.append(week_aver[train_num + i + step, :])
 
     train_x_np = np.array(train_x)
@@ -82,4 +101,8 @@ def create_train_test_week(step, train_num, test_num):
     train_y_aver_np = np.array(train_y_aver)
     test_y_aver_np = np.array(test_y_aver)
 
-    return train_x_np, train_y_np, train_y_aver_np, test_x_np, test_y_np, test_y_aver_np, flow_diff_min, flow_diff_max
+    flow_diff_trend = TrendDiff(flow_diff_ns, train_num, train_y_aver_np, test_num, test_y_aver_np)
+
+    data = {'data_process': flow_diff_trend, 'train_x': train_x_np, 'train_y': train_y_np,
+            'test_x': test_x_np, 'test_y': test_y_np}
+    return data
