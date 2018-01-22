@@ -2,7 +2,6 @@ import numpy as np
 
 
 class PCA:
-
     def __init__(self, X, retain):
         # X=n*m n为样本个数，m为样本的维度
         # X必须均值为0,只有在均值为0时，协方差sigma=xT*x
